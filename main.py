@@ -3,6 +3,7 @@ import time
 from machine import UART, Pin, SPI
 import gc
 import framebuf
+import neopixel
 
 class BaudRateDetector:
     def __init__(self, rx_pin=1):
@@ -261,7 +262,8 @@ class SerialAutoConfig:
         self.tx_pin = tx_pin
         self.rx_pin = rx_pin
         self.uart = None
-        self.led = Pin(25, Pin.OUT)  # Built-in LED for status indication
+        # Initialize WS2812 RGB LED on GPIO16
+        self.led = neopixel.NeoPixel(Pin(16), 1)
         
         # Initialize display
         self.display = RGBDisplay()
@@ -295,11 +297,13 @@ class SerialAutoConfig:
         self.display.add_text_line("Detecting baud rate...")
         self.display.add_text_line("Please send data")
         
-        # Blink LED to indicate detection in progress
+        # Blink LED to indicate detection in progress (blue)
         for _ in range(3):
-            self.led.on()
+            self.led[0] = (0, 0, 255)  # Blue
+            self.led.write()
             time.sleep_ms(200)
-            self.led.off()
+            self.led[0] = (0, 0, 0)  # Off
+            self.led.write()
             time.sleep_ms(200)
         
         # Start detection
@@ -423,8 +427,12 @@ class SerialAutoConfig:
                     for stop_bits in self.stop_bits:
                         current_config += 1
                         
-                        # Blink LED to show progress
-                        self.led.toggle()
+                        # Blink LED to show progress (yellow)
+                        self.led[0] = (255, 255, 0)  # Yellow
+                        self.led.write()
+                        time.sleep_ms(50)
+                        self.led[0] = (0, 0, 0)  # Off
+                        self.led.write()
                         
                         # Update display with progress
                         progress_msg = f"Config {current_config}/{total_configs}"
@@ -467,8 +475,9 @@ class SerialAutoConfig:
                             print(f"Stop Bits: {config['stop_bits']}")
                             print(f"Sample received data: {data[:100]}")
                             
-                            # Keep LED on to indicate success
-                            self.led.on()
+                            # Keep LED on to indicate success (green)
+                            self.led[0] = (0, 255, 0)  # Green
+                            self.led.write()
                             return config
             
             # If detection failed, fall back to traditional method
@@ -490,8 +499,12 @@ class SerialAutoConfig:
                     for stop_bits in self.stop_bits:
                         current_config += 1
                         
-                        # Blink LED to show progress
-                        self.led.toggle()
+                        # Blink LED to show progress (orange)
+                        self.led[0] = (255, 165, 0)  # Orange
+                        self.led.write()
+                        time.sleep_ms(50)
+                        self.led[0] = (0, 0, 0)  # Off
+                        self.led.write()
                         
                         # Update display with progress
                         progress_msg = f"Config {current_config}/{total_configs}"
@@ -534,8 +547,9 @@ class SerialAutoConfig:
                             print(f"Stop Bits: {config['stop_bits']}")
                             print(f"Sample received data: {data[:100]}")
                             
-                            # Keep LED on to indicate success
-                            self.led.on()
+                            # Keep LED on to indicate success (green)
+                            self.led[0] = (0, 255, 0)  # Green
+                            self.led.write()
                             return config
         
         # No configuration found
@@ -545,7 +559,9 @@ class SerialAutoConfig:
         self.display.add_text_line("and try again")
         
         print(f"\n\n❌ No working configuration found")
-        self.led.off()
+        # Turn LED off (red for failure)
+        self.led[0] = (255, 0, 0)  # Red
+        self.led.write()
         return None
     
     def monitor_serial(self, config):
@@ -568,6 +584,10 @@ class SerialAutoConfig:
         self.display.add_text_line(f"Parity: {parity_str}")
         self.display.add_text_line(f"Stop: {config['stop_bits']}")
         self.display.add_text_line("=" * 20)
+        
+        # Set LED to cyan for monitoring mode
+        self.led[0] = (0, 255, 255)  # Cyan
+        self.led.write()
         
         print(f"\n📡 Monitoring serial data with configuration:")
         print(f"Baud Rate: {config['baud_rate']}")
@@ -600,10 +620,22 @@ class SerialAutoConfig:
                             text = text.replace('\r', '').replace('\n', ' ')
                             if text.strip():
                                 self.display.add_text_line(f"RX: {text}")
+                                # Flash LED green briefly when data received
+                                self.led[0] = (0, 255, 0)  # Green
+                                self.led.write()
+                                time.sleep_ms(100)
+                                self.led[0] = (0, 255, 255)  # Back to cyan
+                                self.led.write()
                             print(f"Received: {text}", end='')
                         except:
                             hex_data = data.hex()
                             self.display.add_text_line(f"HEX: {hex_data}")
+                            # Flash LED blue briefly for hex data
+                            self.led[0] = (0, 0, 255)  # Blue
+                            self.led.write()
+                            time.sleep_ms(100)
+                            self.led[0] = (0, 255, 255)  # Back to cyan
+                            self.led.write()
                             print(f"Received (hex): {hex_data}")
                 
                 time.sleep_ms(10)
@@ -611,9 +643,15 @@ class SerialAutoConfig:
                 
         except KeyboardInterrupt:
             self.display.add_text_line("MONITORING STOPPED")
+            # Turn LED off when monitoring stops
+            self.led[0] = (0, 0, 0)  # Off
+            self.led.write()
             print("\nMonitoring stopped by user")
         except Exception as e:
             self.display.add_text_line(f"ERROR: {str(e)}")
+            # Turn LED red for error
+            self.led[0] = (255, 0, 0)  # Red
+            self.led.write()
             print(f"Error during monitoring: {e}")
 
 def main():
