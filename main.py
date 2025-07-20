@@ -118,7 +118,7 @@ class BaudRateDetector:
         }
 
 class RGBDisplay:
-    def __init__(self, spi_id=0, dc_pin=8, cs_pin=9, rst_pin=12, bl_pin=None):
+    def __init__(self, spi_id=0, dc_pin=5, cs_pin=6, rst_pin=7, bl_pin=8):
         """
         Initialize RGB display via SPI
         
@@ -234,6 +234,7 @@ class RGBDisplay:
     def draw_text(self, text, x, y, color=0xFFFF):
         """Draw text at specified position"""
         self.fb.text(text, x, y, color)
+        self.update()
     
     def add_text_line(self, text):
         """Add a new line of text and scroll if needed"""
@@ -252,8 +253,6 @@ class RGBDisplay:
             if len(line) > self.chars_per_line:
                 line = line[:self.chars_per_line]
             self.draw_text(line, 0, y_pos)
-        
-        self.update()
 
 class SerialAutoConfig:
     def __init__(self, uart_id=0, tx_pin=0, rx_pin=1):
