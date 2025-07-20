@@ -133,7 +133,7 @@ class RGBDisplay:
         self.height = 160
         
         # SPI configuration
-        self.spi = SPI(spi_id, baudrate=40000000, polarity=0, phase=0)
+        self.spi = SPI(spi_id, baudrate=40000000, polarity=0, phase=0, sck=Pin(2), mosi=Pin(3))
         self.dc = Pin(dc_pin, Pin.OUT)
         self.cs = Pin(cs_pin, Pin.OUT)
         self.rst = Pin(rst_pin, Pin.OUT)

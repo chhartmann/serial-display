@@ -9,7 +9,7 @@ from machine import SPI, Pin
 import framebuf
 
 class RGBDisplay:
-    def __init__(self, spi_id=0, dc_pin=5, cs_pin=6, rst_pin=7, bl_pin=None):
+    def __init__(self, spi_id=0, dc_pin=5, cs_pin=6, rst_pin=7, bl_pin=8):
         """
         Initialize RGB display via SPI
         
@@ -24,7 +24,7 @@ class RGBDisplay:
         self.height = 160
         
         # SPI configuration
-        self.spi = SPI(spi_id, baudrate=40000000, polarity=0, phase=0)
+        self.spi = SPI(spi_id, baudrate=40000000, polarity=0, phase=0, sck=Pin(2), mosi=Pin(3))
         self.dc = Pin(dc_pin, Pin.OUT)
         self.cs = Pin(cs_pin, Pin.OUT)
         self.rst = Pin(rst_pin, Pin.OUT)
@@ -95,9 +95,9 @@ class RGBDisplay:
         self.write_cmd(0x2C)  # Memory write
         self.write_data(self.buffer)
     
-    def draw_text(self, text, x, y, color=0xFFFF, bg_color=0x0000):
+    def draw_text(self, text, x, y, color=0xFFFF):
         """Draw text at specified position"""
-        self.fb.text(text, x, y, color, bg_color)
+        self.fb.text(text, x, y, color)
     
     def draw_rect(self, x, y, w, h, color=0xFFFF):
         """Draw rectangle"""
@@ -107,13 +107,56 @@ class RGBDisplay:
         """Draw filled rectangle"""
         self.fb.fill_rect(x, y, w, h, color)
     
-    def draw_circle(self, x, y, r, color=0xFFFF):
-        """Draw circle"""
-        self.fb.circle(x, y, r, color)
-    
-    def draw_filled_circle(self, x, y, r, color=0xFFFF):
-        """Draw filled circle"""
-        self.fb.fill_circle(x, y, r, color)
+    def draw_circle(self, x0, y0, r, color=0xFFFF):
+        """Draw circle using midpoint algorithm"""
+        x = r
+        y = 0
+        d = 1 - r
+        self.fb.pixel(x0 + x, y0 + y, color)
+        self.fb.pixel(x0 - x, y0 + y, color)
+        self.fb.pixel(x0 + x, y0 - y, color)
+        self.fb.pixel(x0 - x, y0 - y, color)
+        self.fb.pixel(x0 + y, y0 + x, color)
+        self.fb.pixel(x0 - y, y0 + x, color)
+        self.fb.pixel(x0 + y, y0 - x, color)
+        self.fb.pixel(x0 - y, y0 - x, color)
+        while x > y:
+            y += 1
+            if d <= 0:
+                d = d + 2 * y + 1
+            else:
+                x -= 1
+                d = d + 2 * (y - x) + 1
+            if x < y:
+                break
+            self.fb.pixel(x0 + x, y0 + y, color)
+            self.fb.pixel(x0 - x, y0 + y, color)
+            self.fb.pixel(x0 + x, y0 - y, color)
+            self.fb.pixel(x0 - x, y0 - y, color)
+            self.fb.pixel(x0 + y, y0 + x, color)
+            self.fb.pixel(x0 - y, y0 + x, color)
+            self.fb.pixel(x0 + y, y0 - x, color)
+            self.fb.pixel(x0 - y, y0 - x, color)
+
+    def draw_filled_circle(self, x0, y0, r, color=0xFFFF):
+        """Draw filled circle using midpoint algorithm"""
+        x = r
+        y = 0
+        d = 1 - r
+        self.fb.hline(x0 - r, y0, 2 * r + 1, color)
+        while x > y:
+            y += 1
+            if d <= 0:
+                d = d + 2 * y + 1
+            else:
+                x -= 1
+                d = d + 2 * (y - x) + 1
+            if x < y:
+                break
+            self.fb.hline(x0 - x, y0 + y, 2 * x + 1, color)
+            self.fb.hline(x0 - x, y0 - y, 2 * x + 1, color)
+            self.fb.hline(x0 - y, y0 + x, 2 * y + 1, color)
+            self.fb.hline(x0 - y, y0 - x, 2 * y + 1, color)
 
     def set_backlight(self, brightness):
         """
@@ -139,7 +182,7 @@ def test_basic_display():
     try:
         # Initialize display
         display = RGBDisplay(bl_pin=8)
-        display.set_backlight(0.5)
+        display.backlight_on()  # Ensure backlight is fully on
         print("Display initialized successfully")
         
         # Test 1: Clear screen
@@ -181,7 +224,7 @@ def test_text_display():
     
     try:
         display = RGBDisplay(bl_pin=8)
-        display.set_backlight(0.5)
+        display.backlight_on()  # Ensure backlight is fully on
         
         # Clear to black
         display.clear(0x0000)
@@ -203,6 +246,7 @@ def test_text_display():
             display.draw_text(f"Test {i+1}/7", 10, 40, color)
             display.draw_text("RGB Display", 10, 60, color)
             display.draw_text("Working!", 10, 80, color)
+            display.update()
             print(f"Test {i+1}: {name} text")
             time.sleep(1)
         
@@ -220,7 +264,7 @@ def test_graphics():
     
     try:
         display = RGBDisplay(bl_pin=8)
-        display.set_backlight(0.5)
+        display.backlight_on()  # Ensure backlight is fully on
         
         # Clear to black
         display.clear(0x0000)
@@ -234,7 +278,7 @@ def test_graphics():
         # Add text
         display.draw_text("Graphics Test", 10, 120, 0xFFFF)
         display.draw_text("Shapes OK", 10, 140, 0xFFE0)
-        
+        display.update()
         print("Graphics test completed")
         time.sleep(3)
         
@@ -250,7 +294,7 @@ def test_scrolling_text():
     
     try:
         display = RGBDisplay(bl_pin=8)
-        display.set_backlight(0.5)
+        display.backlight_on()  # Ensure backlight is fully on
         
         # Clear to black
         display.clear(0x0000)
@@ -286,6 +330,7 @@ def test_scrolling_text():
                 if i + j < len(messages):
                     y_pos = j * 8
                     display.draw_text(messages[i + j], 0, y_pos, 0xFFFF)
+            display.update()
             print(f"Scrolling frame {i+1}")
             time.sleep(0.5)
         
