@@ -9,7 +9,7 @@ from machine import SPI, Pin
 import framebuf
 
 class RGBDisplay:
-    def __init__(self, spi_id=0, dc_pin=8, cs_pin=9, rst_pin=12):
+    def __init__(self, spi_id=0, dc_pin=5, cs_pin=6, rst_pin=7, bl_pin=None):
         """
         Initialize RGB display via SPI
         
@@ -18,6 +18,7 @@ class RGBDisplay:
             dc_pin: Data/Command pin
             cs_pin: Chip Select pin
             rst_pin: Reset pin
+            bl_pin: Backlight pin (PWM capable, optional)
         """
         self.width = 128
         self.height = 160
@@ -27,6 +28,14 @@ class RGBDisplay:
         self.dc = Pin(dc_pin, Pin.OUT)
         self.cs = Pin(cs_pin, Pin.OUT)
         self.rst = Pin(rst_pin, Pin.OUT)
+        
+        # Backlight PWM
+        self.bl_pwm = None
+        if bl_pin is not None:
+            from machine import PWM
+            self.bl_pwm = PWM(Pin(bl_pin))
+            self.bl_pwm.freq(1000)
+            self.set_backlight(1.0)  # 100% brightness by default
         
         # Initialize display
         self.init_display()
@@ -106,13 +115,31 @@ class RGBDisplay:
         """Draw filled circle"""
         self.fb.fill_circle(x, y, r, color)
 
+    def set_backlight(self, brightness):
+        """
+        Set backlight brightness (0.0 to 1.0)
+        """
+        if self.bl_pwm is not None:
+            brightness = max(0.0, min(1.0, brightness))
+            duty = int(brightness * 65535)
+            self.bl_pwm.duty_u16(duty)
+    
+    def backlight_on(self):
+        """Turn backlight fully on (100%)"""
+        self.set_backlight(1.0)
+    
+    def backlight_off(self):
+        """Turn backlight off (0%)"""
+        self.set_backlight(0.0)
+
 def test_basic_display():
     """Test basic display functionality"""
     print("Testing RGB Display...")
     
     try:
         # Initialize display
-        display = RGBDisplay()
+        display = RGBDisplay(bl_pin=8)
+        display.set_backlight(0.5)
         print("Display initialized successfully")
         
         # Test 1: Clear screen
@@ -153,7 +180,8 @@ def test_text_display():
     print("Testing text display...")
     
     try:
-        display = RGBDisplay()
+        display = RGBDisplay(bl_pin=8)
+        display.set_backlight(0.5)
         
         # Clear to black
         display.clear(0x0000)
@@ -191,7 +219,8 @@ def test_graphics():
     print("Testing graphics...")
     
     try:
-        display = RGBDisplay()
+        display = RGBDisplay(bl_pin=8)
+        display.set_backlight(0.5)
         
         # Clear to black
         display.clear(0x0000)
@@ -220,7 +249,8 @@ def test_scrolling_text():
     print("Testing scrolling text...")
     
     try:
-        display = RGBDisplay()
+        display = RGBDisplay(bl_pin=8)
+        display.set_backlight(0.5)
         
         # Clear to black
         display.clear(0x0000)

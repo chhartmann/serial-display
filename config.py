@@ -13,9 +13,9 @@ LED_PIN = 25         # Built-in LED pin
 
 # Display Configuration
 DISPLAY_SPI_ID = 0   # SPI interface ID
-DISPLAY_DC_PIN = 8   # Data/Command pin
-DISPLAY_CS_PIN = 9   # Chip Select pin
-DISPLAY_RST_PIN = 12 # Reset pin
+DISPLAY_DC_PIN = 5   # Data/Command pin
+DISPLAY_CS_PIN = 6   # Chip Select pin
+DISPLAY_RST_PIN = 7  # Reset pin
 DISPLAY_WIDTH = 128  # Display width in pixels
 DISPLAY_HEIGHT = 160 # Display height in pixels
 DISPLAY_FONT_WIDTH = 6   # Font width in pixels

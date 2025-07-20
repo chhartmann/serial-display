@@ -46,11 +46,14 @@ Once the baud rate is detected:
 - **RX Pin**: GPIO 1 (Pin 2)
 
 ### Display Pins (SPI)
-- **SPI SCK**: GPIO 2 (Pin 4)
-- **SPI MOSI**: GPIO 3 (Pin 5)
-- **DC Pin**: GPIO 8 (Pin 11)
-- **CS Pin**: GPIO 9 (Pin 12)
-- **RST Pin**: GPIO 12 (Pin 16)
+- **SPI SCK**: GPIO 2 (Pin 4) - Fixed by SPI interface
+- **SPI MOSI**: GPIO 3 (Pin 5) - Fixed by SPI interface
+- **DC Pin**: GPIO 5 (Pin 7) - Data/Command control
+- **CS Pin**: GPIO 6 (Pin 9) - Chip Select
+- **RST Pin**: GPIO 7 (Pin 10) - Reset
+
+### Backlight Pin (PWM)
+- **BL Pin**: GPIO 8 (Pin 11) - Backlight control (PWM, default 50% brightness)
 
 ### Status LED
 - **LED**: GPIO 25 (Built-in LED)
@@ -137,7 +140,9 @@ Once a working configuration is found, the program:
 auto_config = SerialAutoConfig(uart_id=1, tx_pin=4, rx_pin=5)
 
 # Modify display pins
-display = RGBDisplay(spi_id=1, dc_pin=10, cs_pin=11, rst_pin=13)
+# Add backlight pin (BL) with PWM, e.g. GPIO8
+display = RGBDisplay(spi_id=1, dc_pin=10, cs_pin=11, rst_pin=13, bl_pin=8)
+display.set_backlight(0.5)  # Set to 50% brightness
 ```
 
 ### Manual Testing

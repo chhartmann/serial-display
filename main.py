@@ -137,7 +137,7 @@ class BaudRateDetector:
         }
 
 class RGBDisplay:
-    def __init__(self, spi_id=0, dc_pin=8, cs_pin=9, rst_pin=12):
+    def __init__(self, spi_id=0, dc_pin=8, cs_pin=9, rst_pin=12, bl_pin=None):
         """
         Initialize RGB display via SPI
         
@@ -146,6 +146,7 @@ class RGBDisplay:
             dc_pin: Data/Command pin
             cs_pin: Chip Select pin
             rst_pin: Reset pin
+            bl_pin: Backlight pin (PWM capable, optional)
         """
         self.width = 128
         self.height = 160
@@ -155,6 +156,14 @@ class RGBDisplay:
         self.dc = Pin(dc_pin, Pin.OUT)
         self.cs = Pin(cs_pin, Pin.OUT)
         self.rst = Pin(rst_pin, Pin.OUT)
+        
+        # Backlight PWM
+        self.bl_pwm = None
+        if bl_pin is not None:
+            from machine import PWM
+            self.bl_pwm = PWM(Pin(bl_pin))
+            self.bl_pwm.freq(1000)
+            self.set_backlight(1.0)  # 100% brightness by default
         
         # Initialize display
         self.init_display()
@@ -175,7 +184,24 @@ class RGBDisplay:
         # Text buffer for scrolling
         self.text_lines = []
         self.current_line = 0
-        
+    
+    def set_backlight(self, brightness):
+        """
+        Set backlight brightness (0.0 to 1.0)
+        """
+        if self.bl_pwm is not None:
+            brightness = max(0.0, min(1.0, brightness))
+            duty = int(brightness * 65535)
+            self.bl_pwm.duty_u16(duty)
+    
+    def backlight_on(self):
+        """Turn backlight fully on (100%)"""
+        self.set_backlight(1.0)
+    
+    def backlight_off(self):
+        """Turn backlight off (0%)"""
+        self.set_backlight(0.0)
+    
     def init_display(self):
         """Initialize the RGB display"""
         # Reset display
@@ -266,7 +292,8 @@ class SerialAutoConfig:
         self.led = neopixel.NeoPixel(Pin(16), 1)
         
         # Initialize display
-        self.display = RGBDisplay()
+        self.display = RGBDisplay(bl_pin=8)
+        self.display.set_backlight(0.5)
         
         # Initialize baud rate detector
         self.baud_detector = BaudRateDetector(rx_pin)
