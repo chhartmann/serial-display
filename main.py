@@ -27,44 +27,25 @@ class BaudRateDetector:
             list: List of pulse widths in microseconds
         """
         pulse_widths = []
-        start_time = time.ticks_ms()
-        
         # Wait for first edge
         initial_state = self.rx_pin.value()
-        
-        while time.ticks_diff(time.ticks_ms(), start_time) < self.timeout_ms:
+        while True:
             # Wait for edge change
             while self.rx_pin.value() == initial_state:
-                if time.ticks_diff(time.ticks_ms(), start_time) > self.timeout_ms:
-                    break
                 time.sleep_us(10)
-            
-            if time.ticks_diff(time.ticks_ms(), start_time) > self.timeout_ms:
-                break
-            
             # Measure pulse width
             pulse_start = time.ticks_us()
             current_state = self.rx_pin.value()
-            
             # Wait for next edge
             while self.rx_pin.value() == current_state:
-                if time.ticks_diff(time.ticks_ms(), start_time) > self.timeout_ms:
-                    break
                 time.sleep_us(10)
-            
-            if time.ticks_diff(time.ticks_ms(), start_time) > self.timeout_ms:
-                break
-            
             pulse_end = time.ticks_us()
             pulse_width = time.ticks_diff(pulse_end, pulse_start)
-            
             if pulse_width > 0 and pulse_width < 1000000:  # Reasonable range (1ms to 1s)
                 pulse_widths.append(pulse_width)
-            
-            # Limit number of samples
-            if len(pulse_widths) >= self.max_samples:
+            # Stop if enough samples
+            if len(pulse_widths) >= self.max_samples or len(pulse_widths) >= self.min_samples:
                 break
-        
         return pulse_widths
     
     def detect_baud_rate(self):
@@ -371,19 +352,17 @@ class SerialAutoConfig:
         except UnicodeDecodeError:
             return False
     
-    def test_configuration(self, baud_rate, data_bits=8, parity=None, stop_bits=1, timeout=1000):
+    def test_configuration(self, baud_rate, data_bits=8, parity=None, stop_bits=1):
         """
         Test a specific serial configuration
-        
         Args:
             baud_rate: Baud rate to test
             data_bits: Number of data bits
             parity: Parity setting (None, 0, 1)
             stop_bits: Number of stop bits
-            timeout: Timeout in milliseconds
-            
         Returns:
             tuple: (success, received_data, config_info)
+        Note: This function waits indefinitely until enough data is received.
         """
         try:
             # Create UART with current configuration
@@ -395,17 +374,12 @@ class SerialAutoConfig:
                 stop=stop_bits,
                 tx=Pin(self.tx_pin),
                 rx=Pin(self.rx_pin),
-                timeout=timeout
+                timeout=1000  # Required by constructor, ignored in logic
             )
-            
             # Clear any existing data
             self.uart.read()
-            
-            # Wait for data with timeout
-            start_time = time.ticks_ms()
             received_data = b''
-            
-            while time.ticks_diff(time.ticks_ms(), start_time) < timeout:
+            while True:
                 if self.uart.any():
                     chunk = self.uart.read()
                     if chunk:
@@ -414,7 +388,6 @@ class SerialAutoConfig:
                         if len(received_data) >= 10:
                             break
                 time.sleep_ms(10)
-            
             # Check if we received valid text
             if received_data and self.is_printable_text(received_data):
                 config_info = {
@@ -424,65 +397,80 @@ class SerialAutoConfig:
                     'stop_bits': stop_bits
                 }
                 return True, received_data, config_info
-            
             return False, received_data, None
-            
         except Exception as e:
             print(f"Error testing configuration: {e}")
             return False, b'', None
     
     def find_working_configuration(self):
         """
-        Find working configuration using detected baud rate
-        
+        Find working configuration using the new strategy:
+        1. Try 115200 baud, 8 data bits, 1 stop bit, no parity. Wait for data.
+        2. If unsuccessful, measure baudrate and proceed with existing logic.
         Returns:
             dict: Working configuration or None if none found
         """
-        # First, try to detect baud rate
+        # Step 1: Try 115200, 8N1 first
+        self.display.add_text_line("Trying 115200 8N1...")
+        print("Trying 115200 baud, 8 data bits, 1 stop bit, no parity...")
+        success, data, config = self.test_configuration(115200, 8, None, 1)
+        if success:
+            self.display.clear()
+            self.display.add_text_line("SUCCESS!")
+            self.display.add_text_line(f"Baud: {config['baud_rate']}")
+            self.display.add_text_line(f"Data: {config['data_bits']} bits")
+            self.display.add_text_line(f"Parity: NONE")
+            self.display.add_text_line(f"Stop: {config['stop_bits']}")
+            self.display.add_text_line("Sample data:")
+            sample = data[:50].decode('utf-8', errors='replace')
+            self.display.add_text_line(sample)
+            print(f"\n\n✅ WORKING CONFIGURATION FOUND!")
+            print(f"Baud Rate: {config['baud_rate']}")
+            print(f"Data Bits: {config['data_bits']}")
+            print(f"Parity: NONE")
+            print(f"Stop Bits: {config['stop_bits']}")
+            print(f"Sample received data: {data[:100]}")
+            self.led[0] = (0, 255, 0)  # Green
+            self.led.write()
+            return config
+        else:
+            self.display.add_text_line("No data at 115200 8N1")
+            print("No data received at 115200 8N1. Proceeding to baudrate detection...")
+
+        # Step 2: Measure baudrate and proceed with existing logic
         detected_baud = self.detect_baud_rate()
-        
         if detected_baud:
             # Use detected baud rate and test other parameters
             self.display.add_text_line("Testing with detected")
             self.display.add_text_line(f"baud rate: {detected_baud}")
-            
             total_configs = len(self.data_bits) * len(self.parity_options) * len(self.stop_bits)
             current_config = 0
-            
             for data_bits in self.data_bits:
                 for parity in self.parity_options:
                     for stop_bits in self.stop_bits:
                         current_config += 1
-                        
                         # Blink LED to show progress (yellow)
                         self.led[0] = (255, 255, 0)  # Yellow
                         self.led.write()
                         time.sleep_ms(50)
                         self.led[0] = (0, 0, 0)  # Off
                         self.led.write()
-                        
                         # Update display with progress
                         progress_msg = f"Config {current_config}/{total_configs}"
                         self.display.add_text_line(progress_msg)
-                        
                         config_msg = f"{data_bits} bits, {detected_baud} baud"
                         self.display.add_text_line(config_msg)
-                        
                         parity_str = 'EVEN' if parity == 0 else 'ODD' if parity == 1 else 'NONE'
                         stop_msg = f"Parity: {parity_str}, Stop: {stop_bits}"
                         self.display.add_text_line(stop_msg)
-                        
                         print(f"\rTesting config {current_config}/{total_configs}: "
                               f"{detected_baud} baud, {data_bits} data bits, "
                               f"parity={'EVEN' if parity == 0 else 'ODD' if parity == 1 else 'NONE'}, "
                               f"{stop_bits} stop bits", end='')
-                        
                         success, data, config = self.test_configuration(
                             detected_baud, data_bits, parity, stop_bits
                         )
-                        
                         if success:
-                            # Clear display and show success
                             self.display.clear()
                             self.display.add_text_line("SUCCESS!")
                             self.display.add_text_line(f"Baud: {config['baud_rate']}")
@@ -490,71 +478,51 @@ class SerialAutoConfig:
                             self.display.add_text_line(f"Parity: {parity_str}")
                             self.display.add_text_line(f"Stop: {config['stop_bits']}")
                             self.display.add_text_line("Sample data:")
-                            
-                            # Show sample data
                             sample = data[:50].decode('utf-8', errors='replace')
                             self.display.add_text_line(sample)
-                            
                             print(f"\n\n✅ WORKING CONFIGURATION FOUND!")
                             print(f"Baud Rate: {config['baud_rate']}")
                             print(f"Data Bits: {config['data_bits']}")
                             print(f"Parity: {'EVEN' if config['parity'] == 0 else 'ODD' if config['parity'] == 1 else 'NONE'}")
                             print(f"Stop Bits: {config['stop_bits']}")
                             print(f"Sample received data: {data[:100]}")
-                            
-                            # Keep LED on to indicate success (green)
                             self.led[0] = (0, 255, 0)  # Green
                             self.led.write()
                             return config
-            
-            # If detection failed, fall back to traditional method
             self.display.add_text_line("Detection failed")
             self.display.add_text_line("Falling back to")
             self.display.add_text_line("traditional method")
-            
         # Fallback: traditional method with all baud rates
         baud_rates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
         total_configs = len(baud_rates) * len(self.data_bits) * len(self.parity_options) * len(self.stop_bits)
         current_config = 0
-        
         self.display.add_text_line("Testing all baud rates...")
         print(f"Testing {total_configs} different configurations...")
-        
         for baud_rate in baud_rates:
             for data_bits in self.data_bits:
                 for parity in self.parity_options:
                     for stop_bits in self.stop_bits:
                         current_config += 1
-                        
-                        # Blink LED to show progress (orange)
                         self.led[0] = (255, 165, 0)  # Orange
                         self.led.write()
                         time.sleep_ms(50)
                         self.led[0] = (0, 0, 0)  # Off
                         self.led.write()
-                        
-                        # Update display with progress
                         progress_msg = f"Config {current_config}/{total_configs}"
                         self.display.add_text_line(progress_msg)
-                        
                         config_msg = f"{baud_rate} baud, {data_bits} bits"
                         self.display.add_text_line(config_msg)
-                        
                         parity_str = 'EVEN' if parity == 0 else 'ODD' if parity == 1 else 'NONE'
                         stop_msg = f"Parity: {parity_str}, Stop: {stop_bits}"
                         self.display.add_text_line(stop_msg)
-
                         print(f"\rTesting config {current_config}/{total_configs}: "
                               f"{baud_rate} baud, {data_bits} data bits, "
                               f"parity={'EVEN' if parity == 0 else 'ODD' if parity == 1 else 'NONE'}, "
                               f"{stop_bits} stop bits", end='')
-                        
                         success, data, config = self.test_configuration(
                             baud_rate, data_bits, parity, stop_bits
                         )
-                        
                         if success:
-                            # Clear display and show success
                             self.display.clear()
                             self.display.add_text_line("SUCCESS!")
                             self.display.add_text_line(f"Baud: {config['baud_rate']}")
@@ -562,31 +530,22 @@ class SerialAutoConfig:
                             self.display.add_text_line(f"Parity: {parity_str}")
                             self.display.add_text_line(f"Stop: {config['stop_bits']}")
                             self.display.add_text_line("Sample data:")
-                            
-                            # Show sample data
                             sample = data[:50].decode('utf-8', errors='replace')
                             self.display.add_text_line(sample)
-                            
                             print(f"\n\n✅ WORKING CONFIGURATION FOUND!")
                             print(f"Baud Rate: {config['baud_rate']}")
                             print(f"Data Bits: {config['data_bits']}")
                             print(f"Parity: {'EVEN' if config['parity'] == 0 else 'ODD' if config['parity'] == 1 else 'NONE'}")
                             print(f"Stop Bits: {config['stop_bits']}")
                             print(f"Sample received data: {data[:100]}")
-                            
-                            # Keep LED on to indicate success (green)
                             self.led[0] = (0, 255, 0)  # Green
                             self.led.write()
                             return config
-        
-        # No configuration found
         self.display.clear()
         self.display.add_text_line("NO CONFIG FOUND")
         self.display.add_text_line("Check connections")
         self.display.add_text_line("and try again")
-        
         print(f"\n\n❌ No working configuration found")
-        # Turn LED off (red for failure)
         self.led[0] = (255, 0, 0)  # Red
         self.led.write()
         return None
