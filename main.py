@@ -129,8 +129,9 @@ class RGBDisplay:
             rst_pin: Reset pin
             bl_pin: Backlight pin (PWM capable, optional)
         """
-        self.width = 128
-        self.height = 160
+        # Swap width and height for 90-degree rotation
+        self.width = 160
+        self.height = 128
         
         # SPI configuration
         self.spi = SPI(spi_id, baudrate=40000000, polarity=0, phase=0, sck=Pin(2), mosi=Pin(3))
@@ -149,7 +150,7 @@ class RGBDisplay:
         # Initialize display
         self.init_display()
         
-        # Create framebuffer
+        # Create framebuffer (width and height swapped)
         self.buffer = bytearray(self.width * self.height * 2)  # 16-bit color
         self.fb = framebuf.FrameBuffer(self.buffer, self.width, self.height, framebuf.RGB565)
         
@@ -195,9 +196,9 @@ class RGBDisplay:
         init_commands = [
             (0x11, None),  # Sleep out
             (0x3A, b'\x05'),  # Color mode: 16-bit/pixel
-            (0x36, b'\xC8'),  # Memory access control
-            (0x2A, b'\x00\x00\x00\x7F'),  # Column address set
-            (0x2B, b'\x00\x00\x00\x9F'),  # Row address set
+            (0x36, b'\x60'),  # Memory access control: 90-degree rotation (try 0x60)
+            (0x2A, b'\x00\x00\x00\x9F'),  # Column address set (0-159)
+            (0x2B, b'\x00\x00\x00\x7F'),  # Row address set (0-127)
             (0x29, None),  # Display on
         ]
         
@@ -232,12 +233,12 @@ class RGBDisplay:
         self.write_data(self.buffer)
     
     def draw_text(self, text, x, y, color=0xFFFF):
-        """Draw text at specified position"""
+        """Draw text at specified position (no manual rotation)"""
         self.fb.text(text, x, y, color)
         self.update()
     
     def add_text_line(self, text):
-        """Add a new line of text and scroll if needed"""
+        """Add a new line of text and scroll if needed (no manual rotation)"""
         # Add new line
         self.text_lines.append(text)
         
