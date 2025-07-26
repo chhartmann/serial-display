@@ -208,9 +208,9 @@ class SerialAutoConfig:
         try:
             text = data.decode()
             
-            # Check if at least 70% of characters are printable
-            printable_count = sum(1 for c in text if c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!§$%&/()=?,.;:+#*")
-            return printable_count / len(text) > 0.7
+            # Check if at least 90% of characters are printable
+            printable_count = sum(1 for c in text if c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!-$%&/()=?,.;:+#*")
+            return printable_count / len(text) > 0.9
             
         except:
             return False
@@ -350,7 +350,7 @@ class SerialAutoConfig:
         # Clear display for monitoring
         self.display.clear()
         self.display.add_text_line("MONITORING SERIAL")
-        self.display(self.get_configuration_string(config['baud_rate'], config['data_bits', ], config['parity'], config['stop_bits']))
+        self.display.add_text_line(self.get_configuration_string(config['baud_rate'], config['data_bits'], config['parity'], config['stop_bits']))
         self.display.add_text_line("=" * 20)
         
         # Set LED to cyan for monitoring mode
