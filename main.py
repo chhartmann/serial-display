@@ -353,13 +353,11 @@ class SerialAutoConfig:
         
         # Convert to string and check for printable characters
         try:
-            text = data.decode('utf-8', errors='ignore')
-            if not text.strip():
-                return False
+            text = data.decode()
             
-            # Check if at least 50% of characters are printable
-            printable_count = sum(1 for c in text if c.isprintable() or c.isspace())
-            return printable_count / len(text) > 0.5
+            # Check if at least 70% of characters are printable
+            printable_count = sum(1 for c in text if c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!§$%&/()=?,.;:+#*")
+            return printable_count / len(text) > 0.7
             
         except:
             return False
@@ -429,19 +427,8 @@ class SerialAutoConfig:
         if success:
             self.display.clear()
             self.display.add_text_line("SUCCESS!")
-            self.display.add_text_line(f"Baud: {config['baud_rate']}")
-            self.display.add_text_line(f"Data: {config['data_bits']} bits")
-            self.display.add_text_line(f"Parity: NONE")
-            self.display.add_text_line(f"Stop: {config['stop_bits']}")
-            self.display.add_text_line("Sample data:")
-            sample = data[:50].decode('utf-8', errors='replace')
+            sample = data.decode()
             self.display.add_text_line(sample)
-            print(f"\n\n✅ WORKING CONFIGURATION FOUND!")
-            print(f"Baud Rate: {config['baud_rate']}")
-            print(f"Data Bits: {config['data_bits']}")
-            print(f"Parity: NONE")
-            print(f"Stop Bits: {config['stop_bits']}")
-            print(f"Sample received data: {data[:100]}")
             self.led[0] = (0, 255, 0)  # Green
             self.led.write()
             return config
@@ -612,29 +599,15 @@ class SerialAutoConfig:
                 if self.uart.any():
                     data = self.uart.read()
                     if data:
-                        try:
-                            text = data.decode('utf-8', errors='replace')
-                            # Clean up text for display
-                            text = text.replace('\r', '').replace('\n', ' ')
-                            if text.strip():
-                                self.display.add_text_line(f"RX: {text}")
-                                # Flash LED green briefly when data received
-                                self.led[0] = (0, 255, 0)  # Green
-                                self.led.write()
-                                time.sleep_ms(100)
-                                self.led[0] = (0, 255, 255)  # Back to cyan
-                                self.led.write()
-                            print(f"Received: {text}", end='')
-                        except:
-                            hex_data = data.hex()
-                            self.display.add_text_line(f"HEX: {hex_data}")
-                            # Flash LED blue briefly for hex data
-                            self.led[0] = (0, 0, 255)  # Blue
-                            self.led.write()
-                            time.sleep_ms(100)
-                            self.led[0] = (0, 255, 255)  # Back to cyan
-                            self.led.write()
-                            print(f"Received (hex): {hex_data}")
+                        text = data.decode()
+                        self.display.add_text_line(text)
+                        # Flash LED green briefly when data received
+                        self.led[0] = (0, 255, 0)  # Green
+                        self.led.write()
+                        time.sleep_ms(100)
+                        self.led[0] = (0, 255, 255)  # Back to cyan
+                        self.led.write()
+                        print(f"Received: {text}\n", end='')
                 
                 time.sleep_ms(10)
                 gc.collect()  # Prevent memory issues during long monitoring
