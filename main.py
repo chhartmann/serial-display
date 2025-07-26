@@ -4,6 +4,8 @@ from machine import UART, Pin, SPI
 import gc
 import framebuf
 import neopixel
+import ezFBfont
+import ezFBfont_5x7_ascii_07
 
 class BaudRateDetector:
     def __init__(self, rx_pin=1):
@@ -153,6 +155,8 @@ class RGBDisplay:
         # Create framebuffer (width and height swapped)
         self.buffer = bytearray(self.width * self.height * 2)  # 16-bit color
         self.fb = framebuf.FrameBuffer(self.buffer, self.width, self.height, framebuf.RGB565)
+        # Initialize ezFBfont with the framebuffer and font
+        self.ezfont = ezFBfont.ezFBfont(self.fb, ezFBfont_5x7_ascii_07)
         
         # Clear display
         self.clear()
@@ -233,13 +237,12 @@ class RGBDisplay:
         self.write_data(self.buffer)
     
     def draw_text(self, text, x, y, color=0xFFFF):
-        """Draw text at specified position (no manual rotation)"""
-        self.fb.text(text, x, y, color)
+        # Use ezFBfont to draw text
+        self.ezfont.write(text, x, y, fg=color, bg=0x0000)
         self.update()
     
     def add_text_line(self, text):
-        """Add a new line of text and scroll if needed (no manual rotation)"""
-        # Add new line
+        # Add a new line of text and scroll if needed (no manual rotation)
         self.text_lines.append(text)
         
         # Remove old lines if we have too many
@@ -249,11 +252,14 @@ class RGBDisplay:
         # Redraw all lines
         self.clear()
         for i, line in enumerate(self.text_lines):
-            y_pos = i * self.font_height
+            y_pos = i * self.ezfont._font.height()
             # Truncate line if too long
-            if len(line) > self.chars_per_line:
-                line = line[:self.chars_per_line]
-            self.draw_text(line, 0, y_pos)
+            # Use ezFBfont to measure width if needed, but for now just truncate
+            max_chars = self.width // self.ezfont._font.max_width()
+            if len(line) > max_chars:
+                line = line[:max_chars]
+            self.ezfont.write(line, 0, y_pos, fg=0xFFFF, bg=0x0000)
+        self.update()
 
 class SerialAutoConfig:
     def __init__(self, uart_id=0, tx_pin=0, rx_pin=1):
