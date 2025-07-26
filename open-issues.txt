@@ -1,0 +1,6 @@
+baudrate not detected
+display is flickering
+rgb led to be checked
+line break if line does not fit into one line
+print system messages in different color on dispay
+save detected baud rate and start next time with this as default

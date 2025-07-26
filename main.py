@@ -6,119 +6,6 @@ import framebuf
 import neopixel
 import ezFBfont
 import ezFBfont_5x7_ascii_07
-import sys
-
-class BaudRateDetector:
-    def __init__(self, rx_pin=1):
-        """
-        Initialize baud rate detector
-        
-        Args:
-            rx_pin: RX pin number for pulse measurement
-        """
-        self.rx_pin = Pin(rx_pin, Pin.IN)
-        self.pulse_widths = []
-        self.min_samples = 10
-        self.max_samples = 50
-        self.timeout_ms = 5000  # 5 second timeout
-        
-    def measure_pulse_widths(self):
-        """
-        Measure pulse widths in the incoming signal
-        
-        Returns:
-            list: List of pulse widths in microseconds
-        """
-        pulse_widths = []
-        # Wait for first edge
-        initial_state = self.rx_pin.value()
-        while True:
-            # Wait for edge change
-            while self.rx_pin.value() == initial_state:
-                time.sleep_us(10)
-            # Measure pulse width
-            pulse_start = time.ticks_us()
-            current_state = self.rx_pin.value()
-            # Wait for next edge
-            while self.rx_pin.value() == current_state:
-                time.sleep_us(10)
-            pulse_end = time.ticks_us()
-            pulse_width = time.ticks_diff(pulse_end, pulse_start)
-            if pulse_width > 0 and pulse_width < 1000000:  # Reasonable range (1ms to 1s)
-                pulse_widths.append(pulse_width)
-            # Stop if enough samples
-            if len(pulse_widths) >= self.max_samples or len(pulse_widths) >= self.min_samples:
-                break
-        return pulse_widths
-    
-    def detect_baud_rate(self):
-        """
-        Detect baud rate from pulse width measurements
-        
-        Returns:
-            int: Detected baud rate or None if detection failed
-        """
-        print("Measuring pulse widths...")
-        pulse_widths = self.measure_pulse_widths()
-        
-        if len(pulse_widths) < self.min_samples:
-            print(f"Not enough samples: {len(pulse_widths)} < {self.min_samples}")
-            return None
-        
-        # Find the smallest pulse width (shortest bit time)
-        min_pulse = min(pulse_widths)
-        print(f"Smallest pulse width: {min_pulse} us")
-        
-        # Calculate baud rate from bit time
-        # Bit time = 1 / baud_rate
-        # For UART: 1 bit = 1 / baud_rate seconds
-        bit_time_us = min_pulse
-        baud_rate = int(1000000 / bit_time_us)  # Convert to baud rate
-        
-        print(f"Calculated baud rate: {baud_rate}")
-        
-        # Round to nearest standard baud rate
-        standard_rates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
-        closest_rate = min(standard_rates, key=lambda x: abs(x - baud_rate))
-        
-        # Check if the detected rate is reasonable
-        tolerance = 0.1  # 10% tolerance
-        if abs(closest_rate - baud_rate) / baud_rate <= tolerance:
-            print(f"Detected baud rate: {closest_rate}")
-            return closest_rate
-        else:
-            print(f"Detected rate {baud_rate} too far from standard {closest_rate}")
-            return None
-    
-    def analyze_signal_characteristics(self):
-        """
-        Analyze signal characteristics for better detection
-        
-        Returns:
-            dict: Signal analysis results
-        """
-        pulse_widths = self.measure_pulse_widths()
-        
-        if len(pulse_widths) < 5:
-            return None
-        
-        # Calculate statistics
-        min_pulse = min(pulse_widths)
-        max_pulse = max(pulse_widths)
-        avg_pulse = sum(pulse_widths) / len(pulse_widths)
-        
-        # Check for consistent timing (low variance indicates good signal)
-        variance = sum((p - avg_pulse) ** 2 for p in pulse_widths) / len(pulse_widths)
-        std_dev = variance ** 0.5
-        
-        return {
-            'min_pulse': min_pulse,
-            'max_pulse': max_pulse,
-            'avg_pulse': avg_pulse,
-            'std_dev': std_dev,
-            'samples': len(pulse_widths),
-            'consistency': avg_pulse / std_dev if std_dev > 0 else 0
-        }
 
 class RGBDisplay:
     def __init__(self, spi_id=0, dc_pin=5, cs_pin=6, rst_pin=7, bl_pin=8):
@@ -287,10 +174,7 @@ class SerialAutoConfig:
         # Initialize display
         self.display = RGBDisplay(bl_pin=8)
         self.display.set_backlight(0.5)
-        
-        # Initialize baud rate detector
-        self.baud_detector = BaudRateDetector(rx_pin)
-        
+             
         # Common data bit configurations
         self.data_bits = [7, 8]
         
@@ -305,38 +189,7 @@ class SerialAutoConfig:
         self.display.add_text_line("RP2040")
         self.display.add_text_line("=" * 20)
         print("Serial Auto-Configuration for RP2040")
-        print("=" * 40)
-    
-    def detect_baud_rate(self):
-        """
-        Detect baud rate using pulse width measurement
-        
-        Returns:
-            int: Detected baud rate or None if detection failed
-        """
-        self.display.add_text_line("Detecting baud rate...")
-        self.display.add_text_line("Please send data")
-        
-        # Blink LED to indicate detection in progress (blue)
-        for _ in range(3):
-            self.led[0] = (0, 0, 255)  # Blue
-            self.led.write()
-            time.sleep_ms(200)
-            self.led[0] = (0, 0, 0)  # Off
-            self.led.write()
-            time.sleep_ms(200)
-        
-        # Start detection
-        detected_baud = self.baud_detector.detect_baud_rate()
-        
-        if detected_baud:
-            self.display.add_text_line(f"Detected: {detected_baud}")
-            print(f"Baud rate detected: {detected_baud}")
-            return detected_baud
-        else:
-            self.display.add_text_line("Detection failed")
-            print("Baud rate detection failed")
-            return None
+        print("=" * 40)    
     
     def is_printable_text(self, data):
         """
@@ -436,61 +289,6 @@ class SerialAutoConfig:
             self.display.add_text_line("No data at 115200 8N1")
             print("No data received at 115200 8N1. Proceeding to baudrate detection...")
 
-        # Step 2: Measure baudrate and proceed with existing logic
-        detected_baud = self.detect_baud_rate()
-        if detected_baud:
-            # Use detected baud rate and test other parameters
-            self.display.add_text_line("Testing with detected")
-            self.display.add_text_line(f"baud rate: {detected_baud}")
-            total_configs = len(self.data_bits) * len(self.parity_options) * len(self.stop_bits)
-            current_config = 0
-            for data_bits in self.data_bits:
-                for parity in self.parity_options:
-                    for stop_bits in self.stop_bits:
-                        current_config += 1
-                        # Blink LED to show progress (yellow)
-                        self.led[0] = (255, 255, 0)  # Yellow
-                        self.led.write()
-                        time.sleep_ms(50)
-                        self.led[0] = (0, 0, 0)  # Off
-                        self.led.write()
-                        # Update display with progress
-                        progress_msg = f"Config {current_config}/{total_configs}"
-                        self.display.add_text_line(progress_msg)
-                        config_msg = f"{data_bits} bits, {detected_baud} baud"
-                        self.display.add_text_line(config_msg)
-                        parity_str = 'EVEN' if parity == 0 else 'ODD' if parity == 1 else 'NONE'
-                        stop_msg = f"Parity: {parity_str}, Stop: {stop_bits}"
-                        self.display.add_text_line(stop_msg)
-                        print(f"\rTesting config {current_config}/{total_configs}: "
-                              f"{detected_baud} baud, {data_bits} data bits, "
-                              f"parity={'EVEN' if parity == 0 else 'ODD' if parity == 1 else 'NONE'}, "
-                              f"{stop_bits} stop bits", end='')
-                        success, data, config = self.test_configuration(
-                            detected_baud, data_bits, parity, stop_bits
-                        )
-                        if success:
-                            self.display.clear()
-                            self.display.add_text_line("SUCCESS!")
-                            self.display.add_text_line(f"Baud: {config['baud_rate']}")
-                            self.display.add_text_line(f"Data: {config['data_bits']} bits")
-                            self.display.add_text_line(f"Parity: {parity_str}")
-                            self.display.add_text_line(f"Stop: {config['stop_bits']}")
-                            self.display.add_text_line("Sample data:")
-                            sample = data[:50].decode('utf-8', errors='replace')
-                            self.display.add_text_line(sample)
-                            print(f"\n\n✅ WORKING CONFIGURATION FOUND!")
-                            print(f"Baud Rate: {config['baud_rate']}")
-                            print(f"Data Bits: {config['data_bits']}")
-                            print(f"Parity: {'EVEN' if config['parity'] == 0 else 'ODD' if config['parity'] == 1 else 'NONE'}")
-                            print(f"Stop Bits: {config['stop_bits']}")
-                            print(f"Sample received data: {data[:100]}")
-                            self.led[0] = (0, 255, 0)  # Green
-                            self.led.write()
-                            return config
-            self.display.add_text_line("Detection failed")
-            self.display.add_text_line("Falling back to")
-            self.display.add_text_line("traditional method")
         # Fallback: traditional method with all baud rates
         baud_rates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
         total_configs = len(baud_rates) * len(self.data_bits) * len(self.parity_options) * len(self.stop_bits)

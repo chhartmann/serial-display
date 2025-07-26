@@ -7,7 +7,7 @@ import serial
 import time
 import sys
 
-def send_test_data(port, baudrate=115200):
+def send_test_data(port, baudrate=19200):
     """
     Send test serial data for testing the auto-configuration program
     """
