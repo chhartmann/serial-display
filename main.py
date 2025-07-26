@@ -265,6 +265,10 @@ class SerialAutoConfig:
             print(f"Error testing configuration: {e}")
             return False, b'', None
     
+    def get_configuration_string(self, baud_rate, data_bits, parity, stop_bits):
+        parity_str = 'E' if parity == 0 else 'O' if parity == 1 else 'N'
+        return f"Testing {baud_rate} {data_bits}{parity_str}{stop_bits}"
+
     def find_working_configuration(self):
         """
         Find working configuration using the new strategy:
@@ -307,34 +311,19 @@ class SerialAutoConfig:
                         self.led.write()
                         progress_msg = f"Config {current_config}/{total_configs}"
                         self.display.add_text_line(progress_msg)
-                        config_msg = f"{baud_rate} baud, {data_bits} bits"
+                        config_msg = self.get_configuration_string(baud_rate, data_bits, parity, stop_bits)
                         self.display.add_text_line(config_msg)
-                        parity_str = 'EVEN' if parity == 0 else 'ODD' if parity == 1 else 'NONE'
-                        stop_msg = f"Parity: {parity_str}, Stop: {stop_bits}"
-                        self.display.add_text_line(stop_msg)
-                        print(f"\rTesting config {current_config}/{total_configs}: "
-                              f"{baud_rate} baud, {data_bits} data bits, "
-                              f"parity={'EVEN' if parity == 0 else 'ODD' if parity == 1 else 'NONE'}, "
-                              f"{stop_bits} stop bits", end='')
+                        print(f"\r{current_config}/{total_configs} {config_msg}")
                         success, data, config = self.test_configuration(
                             baud_rate, data_bits, parity, stop_bits
                         )
                         if success:
+                            config_msg = self.get_configuration_string(baud_rate, data_bits, parity, stop_bits)
                             self.display.clear()
                             self.display.add_text_line("SUCCESS!")
-                            self.display.add_text_line(f"Baud: {config['baud_rate']}")
-                            self.display.add_text_line(f"Data: {config['data_bits']} bits")
-                            self.display.add_text_line(f"Parity: {parity_str}")
-                            self.display.add_text_line(f"Stop: {config['stop_bits']}")
-                            self.display.add_text_line("Sample data:")
-                            sample = data[:50].decode('utf-8', errors='replace')
-                            self.display.add_text_line(sample)
+                            self.display.add_text_line(config_msg)
                             print(f"\n\n✅ WORKING CONFIGURATION FOUND!")
-                            print(f"Baud Rate: {config['baud_rate']}")
-                            print(f"Data Bits: {config['data_bits']}")
-                            print(f"Parity: {'EVEN' if config['parity'] == 0 else 'ODD' if config['parity'] == 1 else 'NONE'}")
-                            print(f"Stop Bits: {config['stop_bits']}")
-                            print(f"Sample received data: {data[:100]}")
+                            print(config_msg)
                             self.led[0] = (0, 255, 0)  # Green
                             self.led.write()
                             return config
@@ -361,25 +350,13 @@ class SerialAutoConfig:
         # Clear display for monitoring
         self.display.clear()
         self.display.add_text_line("MONITORING SERIAL")
-        self.display.add_text_line(f"Baud: {config['baud_rate']}")
-        self.display.add_text_line(f"Data: {config['data_bits']} bits")
-        parity_str = 'EVEN' if config['parity'] == 0 else 'ODD' if config['parity'] == 1 else 'NONE'
-        self.display.add_text_line(f"Parity: {parity_str}")
-        self.display.add_text_line(f"Stop: {config['stop_bits']}")
+        self.display(self.get_configuration_string(config['baud_rate'], config['data_bits', ], config['parity'], config['stop_bits']))
         self.display.add_text_line("=" * 20)
         
         # Set LED to cyan for monitoring mode
         self.led[0] = (0, 255, 255)  # Cyan
         self.led.write()
-        
-        print(f"\n📡 Monitoring serial data with configuration:")
-        print(f"Baud Rate: {config['baud_rate']}")
-        print(f"Data Bits: {config['data_bits']}")
-        print(f"Parity: {'EVEN' if config['parity'] == 0 else 'ODD' if config['parity'] == 1 else 'NONE'}")
-        print(f"Stop Bits: {config['stop_bits']}")
-        print("Press Ctrl+C to stop monitoring")
-        print("-" * 50)
-        
+                
         # Recreate UART with working configuration
         self.uart = UART(
             self.uart_id,
