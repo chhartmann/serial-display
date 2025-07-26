@@ -44,6 +44,7 @@ Once the baud rate is detected:
 ### UART Pins
 - **TX Pin**: GPIO 0 (Pin 1)
 - **RX Pin**: GPIO 1 (Pin 2)
+- **Ground**: GPIO 4 (Pin 6) - Fixed low state, used as ground connection for serial I/O
 
 ### Display Pins (SPI)
 - **SPI SCK**: GPIO 2 (Pin 4) - Fixed by SPI interface

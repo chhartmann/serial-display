@@ -6,6 +6,7 @@ import framebuf
 import neopixel
 import ezFBfont
 import ezFBfont_5x7_ascii_07
+import sys
 
 class BaudRateDetector:
     def __init__(self, rx_pin=1):
@@ -275,6 +276,11 @@ class SerialAutoConfig:
         self.tx_pin = tx_pin
         self.rx_pin = rx_pin
         self.uart = None
+        
+        # Set GPIO4 to fixed low state
+        self.gpio4 = Pin(4, Pin.OUT)
+        self.gpio4.value(0)  # Set to low
+        
         # Initialize WS2812 RGB LED on GPIO16
         self.led = neopixel.NeoPixel(Pin(16), 1)
         
@@ -355,7 +361,7 @@ class SerialAutoConfig:
             printable_count = sum(1 for c in text if c.isprintable() or c.isspace())
             return printable_count / len(text) > 0.5
             
-        except UnicodeDecodeError:
+        except:
             return False
     
     def test_configuration(self, baud_rate, data_bits=8, parity=None, stop_bits=1):
