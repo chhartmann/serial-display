@@ -6,6 +6,8 @@ import framebuf
 import neopixel
 import ezFBfont
 import ezFBfont_5x7_ascii_07
+import json
+import os
 
 class RGBDisplay:
     def __init__(self, spi_id=0, dc_pin=5, cs_pin=6, rst_pin=7, bl_pin=8):
@@ -150,6 +152,7 @@ class RGBDisplay:
         self.update()
 
 class SerialAutoConfig:
+    CONFIG_FILE = "serial_config.json"
     def __init__(self, uart_id=0, tx_pin=0, rx_pin=1):
         """
         Initialize serial auto-configuration for RP2040
@@ -208,9 +211,10 @@ class SerialAutoConfig:
         try:
             text = data.decode()
             
-            # Check if at least 90% of characters are printable
-            printable_count = sum(1 for c in text if c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!-$%&/()=?,.;:+#*")
-            return printable_count / len(text) > 0.9
+            # Check if at least 85% of characters are printable
+            printable_count = sum(1 for c in text if c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!-$/()=?,.;:+#*")
+            print("Printable " + str(printable_count / len(text)))
+            return printable_count / len(text) > 0.85
             
         except:
             return False
@@ -237,18 +241,18 @@ class SerialAutoConfig:
                 stop=stop_bits,
                 tx=Pin(self.tx_pin),
                 rx=Pin(self.rx_pin),
-                timeout=1000  # Required by constructor, ignored in logic
+                timeout=50  # Required by constructor, ignored in logic
             )
-            # Clear any existing data
-            self.uart.read()
+
+            self.uart.read(1000) # Flush input buffer
             received_data = b''
             while True:
                 if self.uart.any():
-                    chunk = self.uart.read()
+                    chunk = self.uart.read(5)
                     if chunk:
                         received_data += chunk
                         # If we have enough data, check it
-                        if len(received_data) >= 10:
+                        if len(received_data) >= 15:
                             break
                 time.sleep_ms(10)
             # Check if we received valid text
@@ -269,29 +273,56 @@ class SerialAutoConfig:
         parity_str = 'E' if parity == 0 else 'O' if parity == 1 else 'N'
         return f"Testing {baud_rate} {data_bits}{parity_str}{stop_bits}"
 
+    def load_config_from_file(self):
+        """Load serial config from filesystem if available."""
+        try:
+            if self.CONFIG_FILE in os.listdir():
+                with open(self.CONFIG_FILE, "r") as f:
+                    config = json.load(f)
+                # Validate keys
+                required = ["baud_rate", "data_bits", "parity", "stop_bits"]
+                if all(k in config for k in required):
+                    return config
+        except Exception as e:
+            print(f"Error loading config: {e}")
+        return None
+
+    def save_config_to_file(self, config):
+        """Save working serial config to filesystem."""
+        try:
+            with open(self.CONFIG_FILE, "w") as f:
+                json.dump(config, f)
+        except Exception as e:
+            print(f"Error saving config: {e}")
+
     def find_working_configuration(self):
         """
-        Find working configuration using the new strategy:
-        1. Try 115200 baud, 8 data bits, 1 stop bit, no parity. Wait for data.
-        2. If unsuccessful, measure baudrate and proceed with existing logic.
+        Try stored config first, then auto-detect if needed. Store new config if found.
         Returns:
             dict: Working configuration or None if none found
         """
-        # Step 1: Try 115200, 8N1 first
-        self.display.add_text_line("Trying 115200 8N1...")
-        print("Trying 115200 baud, 8 data bits, 1 stop bit, no parity...")
-        success, data, config = self.test_configuration(115200, 8, None, 1)
-        if success:
-            self.display.clear()
-            self.display.add_text_line("SUCCESS!")
-            sample = data.decode()
-            self.display.add_text_line(sample)
-            self.led[0] = (0, 255, 0)  # Green
-            self.led.write()
-            return config
-        else:
-            self.display.add_text_line("No data at 115200 8N1")
-            print("No data received at 115200 8N1. Proceeding to baudrate detection...")
+        # Step 0: Try stored config
+        config = self.load_config_from_file()
+        if config:
+            self.display.add_text_line("Testing stored config...")
+            config_msg = self.get_configuration_string(config["baud_rate"], config["data_bits"], config["parity"], config["stop_bits"])
+            self.display.add_text_line(config_msg)
+            print("Testing stored config from file...")
+            print(config_msg)
+            success, data, valid_config = self.test_configuration(
+                config["baud_rate"], config["data_bits"], config["parity"], config["stop_bits"]
+            )
+            if success:
+                self.display.clear()
+                self.display.add_text_line("STORED CONFIG OK!")
+                sample = data.decode()
+                self.display.add_text_line(sample)
+                self.led[0] = (0, 255, 0)  # Green
+                self.led.write()
+                return valid_config
+            else:
+                self.display.add_text_line("Stored config invalid")
+                print("Stored config invalid, falling back to auto-detect...")
 
         # Fallback: traditional method with all baud rates
         baud_rates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
@@ -318,7 +349,6 @@ class SerialAutoConfig:
                             baud_rate, data_bits, parity, stop_bits
                         )
                         if success:
-                            config_msg = self.get_configuration_string(baud_rate, data_bits, parity, stop_bits)
                             self.display.clear()
                             self.display.add_text_line("SUCCESS!")
                             self.display.add_text_line(config_msg)
@@ -326,6 +356,7 @@ class SerialAutoConfig:
                             print(config_msg)
                             self.led[0] = (0, 255, 0)  # Green
                             self.led.write()
+                            self.save_config_to_file(config)
                             return config
         self.display.clear()
         self.display.add_text_line("NO CONFIG FOUND")
@@ -366,13 +397,13 @@ class SerialAutoConfig:
             stop=config['stop_bits'],
             tx=Pin(self.tx_pin),
             rx=Pin(self.rx_pin),
-            timeout=1000
+            timeout=50
         )
         
         try:
             while True:
                 if self.uart.any():
-                    data = self.uart.read()
+                    data = self.uart.readline()
                     if data:
                         text = data.decode()
                         self.display.add_text_line(text)

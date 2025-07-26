@@ -7,7 +7,7 @@ import serial
 import time
 import sys
 
-def send_test_data(port, baudrate=19200):
+def send_test_data(port, baudrate=115200):
     """
     Send test serial data for testing the auto-configuration program
     """
@@ -18,14 +18,14 @@ def send_test_data(port, baudrate=19200):
             baudrate=baudrate,
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_TWO,
+            stopbits=serial.STOPBITS_ONE,
             timeout=1
         )
         
         print("Test Serial Data Sender")
         print("=" * 30)
         print(f"Connected to {port} at {baudrate} baud")
-        print("Sending test data every 2 seconds...")
+        print("Sending test data every second...")
         print("Press Ctrl+C to stop")
         
         test_messages = [
@@ -52,8 +52,8 @@ def send_test_data(port, baudrate=19200):
             # Increment message index
             message_index += 1
             
-            # Wait 2 seconds before next message
-            time.sleep(2)
+            # Wait 1 second before next message
+            time.sleep(1)
             
     except KeyboardInterrupt:
         print("\nTest stopped by user")
