@@ -1,5 +1,5 @@
 display is flickering
-rgb led to be checked
 line break if line does not fit into one line
-print system messages in different color on dispay
+change pins in same order as display to directly connect
+rgb led to be checked
 update readme

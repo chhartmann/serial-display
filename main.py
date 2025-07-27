@@ -9,6 +9,13 @@ import ezFBfont_5x7_ascii_07
 import json
 import os
 
+# Color constants for different message types
+COLOR_SUCCESS = 0x001F  # Green
+COLOR_FAILURE = 0x07E0  # Red
+COLOR_STATUS =  0xFF55  # Blue
+COLOR_DATA = 0xFFFF     # White
+COLOR_DEFAULT = 0xFFFF  # White (default)
+
 class RGBDisplay:
     def __init__(self, spi_id=0, dc_pin=5, cs_pin=6, rst_pin=7, bl_pin=8):
         """
@@ -131,9 +138,9 @@ class RGBDisplay:
         self.ezfont.write(text, x, y, fg=color, bg=0x0000)
         self.update()
     
-    def add_text_line(self, text):
+    def add_text_line(self, text, color=COLOR_DEFAULT):
         # Add a new line of text and scroll if needed (no manual rotation)
-        self.text_lines.append(text)
+        self.text_lines.append((text, color))
         
         # Remove old lines if we have too many
         while len(self.text_lines) > self.lines_per_screen:
@@ -141,14 +148,14 @@ class RGBDisplay:
         
         # Redraw all lines
         self.clear()
-        for i, line in enumerate(self.text_lines):
+        for i, (line, line_color) in enumerate(self.text_lines):
             y_pos = i * self.ezfont._font.height()
             # Truncate line if too long
             # Use ezFBfont to measure width if needed, but for now just truncate
             max_chars = self.width // self.ezfont._font.max_width()
             if len(line) > max_chars:
                 line = line[:max_chars]
-            self.ezfont.write(line, 0, y_pos, fg=0xFFFF, bg=0x0000)
+            self.ezfont.write(line, 0, y_pos, fg=line_color, bg=0x0000)
         self.update()
 
 class SerialAutoConfig:
@@ -188,9 +195,9 @@ class SerialAutoConfig:
         self.stop_bits = [1, 2]
         
         # Display welcome message
-        self.display.add_text_line("Serial Auto-Config")
-        self.display.add_text_line("RP2040")
-        self.display.add_text_line("=" * 20)
+        self.display.add_text_line("Serial Auto-Config", color=COLOR_STATUS)
+        self.display.add_text_line("RP2040", color=COLOR_STATUS)
+        self.display.add_text_line("=" * 20, color=COLOR_STATUS)
         print("Serial Auto-Configuration for RP2040")
         print("=" * 40)    
     
@@ -304,9 +311,9 @@ class SerialAutoConfig:
         # Step 0: Try stored config
         config = self.load_config_from_file()
         if config:
-            self.display.add_text_line("Testing stored config...")
+            self.display.add_text_line("Testing stored config...", color=COLOR_STATUS)
             config_msg = self.get_configuration_string(config["baud_rate"], config["data_bits"], config["parity"], config["stop_bits"])
-            self.display.add_text_line(config_msg)
+            self.display.add_text_line(config_msg, color=COLOR_STATUS)
             print("Testing stored config from file...")
             print(config_msg)
             success, data, valid_config = self.test_configuration(
@@ -314,21 +321,21 @@ class SerialAutoConfig:
             )
             if success:
                 self.display.clear()
-                self.display.add_text_line("STORED CONFIG OK!")
+                self.display.add_text_line("STORED CONFIG OK!", color=COLOR_SUCCESS)
                 sample = data.decode()
-                self.display.add_text_line(sample)
+                self.display.add_text_line(sample, color=COLOR_DATA)
                 self.led[0] = (0, 255, 0)  # Green
                 self.led.write()
                 return valid_config
             else:
-                self.display.add_text_line("Stored config invalid")
+                self.display.add_text_line("Stored config invalid", color=COLOR_FAILURE)
                 print("Stored config invalid, falling back to auto-detect...")
 
         # Fallback: traditional method with all baud rates
         baud_rates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
         total_configs = len(baud_rates) * len(self.data_bits) * len(self.parity_options) * len(self.stop_bits)
         current_config = 0
-        self.display.add_text_line("Testing all baud rates...")
+        self.display.add_text_line("Testing all baud rates...", color=COLOR_STATUS)
         print(f"Testing {total_configs} different configurations...")
         for baud_rate in baud_rates:
             for data_bits in self.data_bits:
@@ -341,17 +348,17 @@ class SerialAutoConfig:
                         self.led[0] = (0, 0, 0)  # Off
                         self.led.write()
                         progress_msg = f"Config {current_config}/{total_configs}"
-                        self.display.add_text_line(progress_msg)
+                        self.display.add_text_line(progress_msg, color=COLOR_STATUS)
                         config_msg = self.get_configuration_string(baud_rate, data_bits, parity, stop_bits)
-                        self.display.add_text_line(config_msg)
+                        self.display.add_text_line(config_msg, color=COLOR_STATUS)
                         print(f"\r{current_config}/{total_configs} {config_msg}")
                         success, data, config = self.test_configuration(
                             baud_rate, data_bits, parity, stop_bits
                         )
                         if success:
                             self.display.clear()
-                            self.display.add_text_line("SUCCESS!")
-                            self.display.add_text_line(config_msg)
+                            self.display.add_text_line("SUCCESS!", color=COLOR_SUCCESS)
+                            self.display.add_text_line(config_msg, color=COLOR_STATUS)
                             print(f"\n\n✅ WORKING CONFIGURATION FOUND!")
                             print(config_msg)
                             self.led[0] = (0, 255, 0)  # Green
@@ -359,9 +366,9 @@ class SerialAutoConfig:
                             self.save_config_to_file(config)
                             return config
         self.display.clear()
-        self.display.add_text_line("NO CONFIG FOUND")
-        self.display.add_text_line("Check connections")
-        self.display.add_text_line("and try again")
+        self.display.add_text_line("NO CONFIG FOUND", color=COLOR_FAILURE)
+        self.display.add_text_line("Check connections", color=COLOR_STATUS)
+        self.display.add_text_line("and try again", color=COLOR_STATUS)
         print(f"\n\n❌ No working configuration found")
         self.led[0] = (255, 0, 0)  # Red
         self.led.write()
@@ -380,9 +387,9 @@ class SerialAutoConfig:
         
         # Clear display for monitoring
         self.display.clear()
-        self.display.add_text_line("MONITORING SERIAL")
-        self.display.add_text_line(self.get_configuration_string(config['baud_rate'], config['data_bits'], config['parity'], config['stop_bits']))
-        self.display.add_text_line("=" * 20)
+        self.display.add_text_line("MONITORING SERIAL", color=COLOR_STATUS)
+        self.display.add_text_line(self.get_configuration_string(config['baud_rate'], config['data_bits'], config['parity'], config['stop_bits']), color=COLOR_STATUS)
+        self.display.add_text_line("=" * 20, color=COLOR_STATUS)
         
         # Set LED to cyan for monitoring mode
         self.led[0] = (0, 255, 255)  # Cyan
@@ -406,7 +413,7 @@ class SerialAutoConfig:
                     data = self.uart.readline()
                     if data:
                         text = data.decode()
-                        self.display.add_text_line(text)
+                        self.display.add_text_line(text, color=COLOR_DATA)
                         # Flash LED green briefly when data received
                         self.led[0] = (0, 255, 0)  # Green
                         self.led.write()
@@ -419,13 +426,13 @@ class SerialAutoConfig:
                 gc.collect()  # Prevent memory issues during long monitoring
                 
         except KeyboardInterrupt:
-            self.display.add_text_line("MONITORING STOPPED")
+            self.display.add_text_line("MONITORING STOPPED", color=COLOR_STATUS)
             # Turn LED off when monitoring stops
             self.led[0] = (0, 0, 0)  # Off
             self.led.write()
             print("\nMonitoring stopped by user")
         except Exception as e:
-            self.display.add_text_line(f"ERROR: {str(e)}")
+            self.display.add_text_line(f"ERROR: {str(e)}", color=COLOR_FAILURE)
             # Turn LED red for error
             self.led[0] = (255, 0, 0)  # Red
             self.led.write()
