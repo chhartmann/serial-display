@@ -58,12 +58,12 @@ class RGBDisplay:
         # Clear display
         self.clear()
         
-        # Font settings
-        self.font_width = 6
-        self.font_height = 8
+        # Font settings - get actual font dimensions
+        self.font_width = self.ezfont._font.max_width()
+        self.font_height = self.ezfont._font.height()
         self.chars_per_line = self.width // self.font_width
         self.lines_per_screen = self.height // self.font_height
-        
+                
         # Text buffer for scrolling
         self.text_lines = []
         self.current_line = 0
@@ -133,30 +133,64 @@ class RGBDisplay:
         self.write_cmd(0x2C)  # Memory write
         self.write_data(self.buffer)
     
+    def update_region(self, x, y, width, height):
+        """Update only a specific region of the display"""
+        # Set the address window for the region
+        self.write_cmd(0x2A)  # Column address set
+        self.write_data(bytes([x >> 8, x & 0xFF, (x + width - 1) >> 8, (x + width - 1) & 0xFF]))
+        self.write_cmd(0x2B)  # Row address set
+        self.write_data(bytes([y >> 8, y & 0xFF, (y + height - 1) >> 8, (y + height - 1) & 0xFF]))
+        
+        # Calculate the buffer offset for this region
+        start_offset = (y * self.width + x) * 2
+        end_offset = ((y + height) * self.width) * 2
+        
+        # Extract the region data from the buffer
+        region_data = self.buffer[start_offset:end_offset]
+        
+        # Write the region data
+        self.write_cmd(0x2C)  # Memory write
+        self.write_data(region_data)
+    
     def draw_text(self, text, x, y, color=0xFFFF):
         # Use ezFBfont to draw text
         self.ezfont.write(text, x, y, fg=color, bg=0x0000)
         self.update()
     
     def add_text_line(self, text, color=COLOR_DEFAULT):
-        # Add a new line of text and scroll if needed (no manual rotation)
+        # Add a new line of text
         self.text_lines.append((text, color))
+
+        # Calculate current line position
+        current_line_index = (len(self.text_lines) - 1) % self.lines_per_screen
+        y_pos = current_line_index * self.ezfont._font.height()
+
+        # Check if we need to wrap around (when we would exceed screen height)
+        max_lines = self.lines_per_screen
+                
+        # Just clear the area for the new line and draw it
+        # Clear the line area
+        self.fb.fill_rect(0, y_pos, self.width, self.ezfont._font.height(), 0x0000)
         
-        # Remove old lines if we have too many
-        while len(self.text_lines) > self.lines_per_screen:
-            self.text_lines.pop(0)
+        # Truncate line if too long
+        max_chars = self.width // self.ezfont._font.max_width()
+        if len(text) > max_chars:
+            text = text[:max_chars]
         
-        # Redraw all lines
-        self.clear()
-        for i, (line, line_color) in enumerate(self.text_lines):
-            y_pos = i * self.ezfont._font.height()
-            # Truncate line if too long
-            # Use ezFBfont to measure width if needed, but for now just truncate
-            max_chars = self.width // self.ezfont._font.max_width()
-            if len(line) > max_chars:
-                line = line[:max_chars]
-            self.ezfont.write(line, 0, y_pos, fg=line_color, bg=0x0000)
-        self.update()
+        # Draw the new line
+        self.ezfont.write(text, 0, y_pos, fg=color, bg=0x0000)
+        
+        # Draw separator line below the latest text line
+        separator_y = (current_line_index + 1) * self.ezfont._font.height()
+        if separator_y < self.height - 3:
+            self.fb.hline(0, separator_y, self.width, 0xFFFF)  # White line
+        
+        # Update only the affected area (new line + separator line)
+        update_height = self.ezfont._font.height() + 1  # +1 for separator line
+        if separator_y < self.height:
+            self.update_region(0, y_pos, self.width, update_height)
+        else:
+            self.update_region(0, y_pos, self.width, self.ezfont._font.height())
 
 class SerialAutoConfig:
     CONFIG_FILE = "serial_config.json"
@@ -320,10 +354,7 @@ class SerialAutoConfig:
                 config["baud_rate"], config["data_bits"], config["parity"], config["stop_bits"]
             )
             if success:
-                self.display.clear()
                 self.display.add_text_line("STORED CONFIG OK!", color=COLOR_SUCCESS)
-                sample = data.decode()
-                self.display.add_text_line(sample, color=COLOR_DATA)
                 self.led[0] = (0, 255, 0)  # Green
                 self.led.write()
                 return valid_config
@@ -356,7 +387,6 @@ class SerialAutoConfig:
                             baud_rate, data_bits, parity, stop_bits
                         )
                         if success:
-                            self.display.clear()
                             self.display.add_text_line("SUCCESS!", color=COLOR_SUCCESS)
                             self.display.add_text_line(config_msg, color=COLOR_STATUS)
                             print(f"\n\n✅ WORKING CONFIGURATION FOUND!")
@@ -365,7 +395,6 @@ class SerialAutoConfig:
                             self.led.write()
                             self.save_config_to_file(config)
                             return config
-        self.display.clear()
         self.display.add_text_line("NO CONFIG FOUND", color=COLOR_FAILURE)
         self.display.add_text_line("Check connections", color=COLOR_STATUS)
         self.display.add_text_line("and try again", color=COLOR_STATUS)
@@ -386,7 +415,6 @@ class SerialAutoConfig:
             return
         
         # Clear display for monitoring
-        self.display.clear()
         self.display.add_text_line("MONITORING SERIAL", color=COLOR_STATUS)
         self.display.add_text_line(self.get_configuration_string(config['baud_rate'], config['data_bits'], config['parity'], config['stop_bits']), color=COLOR_STATUS)
         self.display.add_text_line("=" * 20, color=COLOR_STATUS)
