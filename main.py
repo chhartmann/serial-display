@@ -228,8 +228,7 @@ class SerialAutoConfig:
         self.stop_bits = [1, 2]
         
         # Display welcome message
-        self.display.add_text_line("Serial Auto-Config", color=COLOR_STATUS)
-        self.display.add_text_line("RP2040", color=COLOR_STATUS)
+        self.display.add_text_line("RP2040 Serial Auto-Config", color=COLOR_STATUS)
         self.display.add_text_line("=" * 20, color=COLOR_STATUS)
         print("Serial Auto-Configuration for RP2040")
         print("=" * 40)    
