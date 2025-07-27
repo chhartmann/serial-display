@@ -64,8 +64,6 @@ class RGBDisplay:
         self.chars_per_line = self.width // self.font_width
         self.lines_per_screen = self.height // self.font_height
                 
-        # Text buffer for scrolling
-        self.text_lines = []
         self.current_line = 0
     
     def set_backlight(self, brightness):
@@ -158,15 +156,16 @@ class RGBDisplay:
         self.update()
     
     def add_text_line(self, text, color=COLOR_DEFAULT):
-        # Add a new line of text
-        self.text_lines.append((text, color))
-
+        max_chars = self.width // self.ezfont._font.max_width()
+        # Split the text into chunks of max_chars length
+        for i in range(0, len(text), max_chars):
+            line = text[i:i+max_chars]
+            self.add_single_text_line(line, color)
+       
+    def add_single_text_line(self, text, color):
         # Calculate current line position
-        current_line_index = (len(self.text_lines) - 1) % self.lines_per_screen
-        y_pos = current_line_index * self.ezfont._font.height()
-
-        # Check if we need to wrap around (when we would exceed screen height)
-        max_lines = self.lines_per_screen
+        self.current_line = (self.current_line + 1) % self.lines_per_screen
+        y_pos = self.current_line * self.ezfont._font.height()
                 
         # Just clear the area for the new line and draw it
         # Clear the line area
@@ -181,7 +180,7 @@ class RGBDisplay:
         self.ezfont.write(text, 0, y_pos, fg=color, bg=0x0000)
         
         # Draw separator line below the latest text line
-        separator_y = (current_line_index + 1) * self.ezfont._font.height()
+        separator_y = (self.current_line + 1) * self.ezfont._font.height()
         if separator_y < self.height - 3:
             self.fb.hline(0, separator_y, self.width, 0xFFFF)  # White line
         

@@ -1,4 +1,3 @@
-line break if line does not fit into one line
 change pins in same order as display to directly connect
 rgb led to be checked
 update readme
