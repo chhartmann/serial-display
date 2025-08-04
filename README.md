@@ -2,6 +2,8 @@
 
 A MicroPython program for the Raspberry Pi Pico (RP2040) that automatically detects and configures serial communication settings, with real-time display output on a 128x160 RGB display via SPI.
 
+![Running Display](pictures/running.jpg)
+
 ## Features
 
 - **Persistent Configuration Storage**: Saves working configurations to filesystem for faster startup
@@ -14,6 +16,11 @@ A MicroPython program for the Raspberry Pi Pico (RP2040) that automatically dete
 - Raspberry Pi Pico (RP2040) or compatible board
 - Serial device connected to UART pins
 - 128x160 RGB display connected via SPI (e.g., ST7735)
+
+## Housing
+**3D Printing**: The housing can be 3D printed using the provided `case.stl` file.
+![Project Housing](pictures/housing.jpeg)
+![Inside View](pictures/inside.jpg)
 
 ## Pin Configuration
 
@@ -29,14 +36,14 @@ A MicroPython program for the Raspberry Pi Pico (RP2040) that automatically dete
 - **RST Pin**: GPIO 7 (Pin 10) - Reset
 - **BL Pin**: GPIO 8 (Pin 11) - Backlight control (PWM, default 50% brightness)
 
-
 ## Installation
 
-1. Copy `main.py` to your RP2040 board
-2. Copy the font files (`ezFBfont.py` and `ezFBfont_5x7_ascii_07.py`) to your board
-3. Connect the RGB display to the SPI pins
-4. Connect your serial device to the UART pins
-5. Reset the board to run the program automatically
+1. Install https://micropython.org/download/RPI_PICO/
+2. Copy `main.py` to your RP2040 board
+3. Copy the font files (`ezFBfont.py` and `ezFBfont_5x7_ascii_07.py`) to your board
+4. Connect the RGB display to the SPI pins
+5. Connect your serial device to the UART pins
+6. Reset the board to run the program automatically
 
 ## How It Works
 

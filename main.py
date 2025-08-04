@@ -219,7 +219,7 @@ class SerialAutoConfig:
         self.display.set_backlight(0.5)
              
         # Common data bit configurations
-        self.data_bits = [7, 8]
+        self.data_bits = [8, 7]
         
         # Common parity settings
         self.parity_options = [None, 0, 1]  # None, EVEN, ODD
@@ -366,10 +366,10 @@ class SerialAutoConfig:
         current_config = 0
         self.display.add_text_line("Testing all baud rates...", color=COLOR_STATUS)
         print(f"Testing {total_configs} different configurations...")
-        for baud_rate in baud_rates:
-            for data_bits in self.data_bits:
-                for parity in self.parity_options:
-                    for stop_bits in self.stop_bits:
+        for data_bits in self.data_bits:
+            for parity in self.parity_options:
+                for stop_bits in self.stop_bits:
+                    for baud_rate in baud_rates:
                         current_config += 1
                         self.led[0] = (255, 165, 0)  # Orange
                         self.led.write()
