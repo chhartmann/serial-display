@@ -19,6 +19,8 @@ A MicroPython program for the Raspberry Pi Pico (RP2040) that automatically dete
 
 ## Housing
 **3D Printing**: The housing can be 3D printed using the provided `case.stl` file.
+Case has been created with https://github.com/mrWheel/YAPP_Box
+
 ![Project Housing](pictures/housing.jpeg)
 ![Inside View](pictures/inside.jpg)
 
@@ -106,6 +108,11 @@ python test/test_serial_local.py
 ## License
 
 This project is open source and available under the MIT License.
+
+### Dependencies
+
+- **ezFBfont.py**: Based on https://github.com/easytarget/microPyEZfonts, licensed under MIT License
+- **ezFBfont_5x7_ascii_07.py**: Uses public domain font from U8G2 project
 
 ## Contributing
 
